@@ -1,18 +1,13 @@
 {
   "functions": {
-    "src/datrik_chat_multi_ai.py": {
+    "app.py": {
       "runtime": "python3.9"
     }
   },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/src/datrik_chat_multi_ai.py"
+      "dest": "/app.py"
     }
-  ],
-  "env": {
-    "ANTHROPIC_API_KEY": "@anthropic_api_key",
-    "OPENAI_API_KEY": "@openai_api_key",
-    "DATABASE_PATH": "./data/datrik.db"
-  }
+  ]
 }
