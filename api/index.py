@@ -1,16 +1,13 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
 import sqlite3
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime
 import openai
 import anthropic
 import os
 from dotenv import load_dotenv
 import json
 import re
-import uuid
 
 # Load environment variables
 load_dotenv()
