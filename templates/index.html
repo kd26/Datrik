@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datrik - AI Food Delivery Analyst</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🧠 Datrik - AI Analyst</h1>
+            <p class="text-gray-600">Ask me anything about your food delivery data!</p>
+        </div>
+
+        <!-- Stats Dashboard -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="stats-dashboard">
+            <!-- Stats will be loaded here -->
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="max-w-4xl mx-auto">
+            <!-- Chat Messages -->
+            <div class="bg-white rounded-lg shadow-lg mb-4 h-96 overflow-y-auto p-4" id="chat-messages">
+                <div class="text-gray-500 text-center py-8">
+                    <p>👋 Welcome to Datrik! Ask me questions about your food delivery data.</p>
+                    <p class="text-sm mt-2">Try: "Show me top restaurants" or "What are popular cuisines?"</p>
+                </div>
+            </div>
+
+            <!-- Input Form -->
+            <div class="bg-white rounded-lg shadow-lg p-4">
+                <form id="query-form" class="flex gap-2">
+                    <input 
+                        type="text" 
+                        id="question-input" 
+                        placeholder="Ask about your data..." 
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                        required
+                    >
+                    <button 
+                        type="submit" 
+                        class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:bg-blue-600 disabled:opacity-50"
+                        id="submit-btn"
+                    >
+                        Ask
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Example Questions -->
+        <div class="max-w-4xl mx-auto mt-8">
+            <h3 class="text-lg font-semibold mb-4">💡 Example Questions:</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <button class="example-btn bg-gray-100 hover:bg-gray-200 p-3 rounded-lg text-left text-sm">
+                    Show me top restaurants by orders
+                </button>
+                <button class="example-btn bg-gray-100 hover:bg-gray-200 p-3 rounded-lg text-left text-sm">
+                    What are the most popular cuisines?
+                </button>
+                <button class="example-btn bg-gray-100 hover:bg-gray-200 p-3 rounded-lg text-left text-sm">
+                    Show recent order trends
+                </button>
+                <button class="example-btn bg-gray-100 hover:bg-gray-200 p-3 rounded-lg text-left text-sm">
+                    Which customers order the most?
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const queryForm = document.getElementById('query-form');
+        const questionInput = document.getElementById('question-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const statsContainer = document.getElementById('stats-dashboard');
+
+        // Load stats on page load
+        loadStats();
+
+        // Example button handlers
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                questionInput.value = btn.textContent.trim();
+                queryForm.dispatchEvent(new Event('submit'));
+            });
+        });
+
+        // Form submission
+        queryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            // Add user message
+            addMessage('user', question);
+            
+            // Show loading
+            const loadingId = addMessage('assistant', '🤔 Analyzing your question...');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            try {
+                const response = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Remove loading message
+                    document.getElementById(loadingId).remove();
+                    
+                    // Add SQL query
+                    addMessage('assistant', `**SQL Query (${data.provider}):**\n\`\`\`sql\n${data.sql_query}\n\`\`\``);
+                    
+                    // Add analysis
+                    addMessage('assistant', data.analysis);
+                    
+                    // Add data table if available
+                    if (data.data && data.data.length > 0) {
+                        addDataTable(data.data);
+                    }
+                } else {
+                    document.getElementById(loadingId).innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById(loadingId).innerHTML = `❌ Error: ${error.message}`;
+            }
+
+            // Reset form
+            questionInput.value = '';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Ask';
+        });
+
+        function addMessage(role, content) {
+            const messageId = 'msg-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.id = messageId;
+            messageDiv.className = `mb-4 ${role === 'user' ? 'text-right' : 'text-left'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `inline-block max-w-3xl p-3 rounded-lg ${
+                role === 'user' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-100 text-gray-800'
+            }`;
+            
+            // Handle markdown-like formatting
+            const formattedContent = content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/```sql\n([\s\S]*?)\n```/g, '<pre class="bg-gray-800 text-green-400 p-2 rounded mt-2 text-sm overflow-x-auto"><code>$1</code></pre>')
+                .replace(/\n/g, '<br>');
+            
+            bubble.innerHTML = formattedContent;
+            messageDiv.appendChild(bubble);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            return messageId;
+        }
+
+        function addDataTable(data) {
+            if (!data || data.length === 0) return;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'mb-4 text-left';
+            
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'bg-white border rounded-lg overflow-hidden max-w-4xl';
+            
+            const table = document.createElement('table');
+            table.className = 'w-full text-sm';
+            
+            // Headers
+            const thead = document.createElement('thead');
+            thead.className = 'bg-gray-50';
+            const headerRow = document.createElement('tr');
+            
+            Object.keys(data[0]).forEach(key => {
+                const th = document.createElement('th');
+                th.className = 'px-4 py-2 text-left font-medium text-gray-700';
+                th.textContent = key.replace(/_/g, ' ').toUpperCase();
+                headerRow.appendChild(th);
+            });
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Body
+            const tbody = document.createElement('tbody');
+            data.slice(0, 10).forEach((row, index) => { // Limit to 10 rows
+                const tr = document.createElement('tr');
+                tr.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                
+                Object.values(row).forEach(value => {
+                    const td = document.createElement('td');
+                    td.className = 'px-4 py-2 text-gray-800';
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+                
+                tbody.appendChild(tr);
+            });
+            
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            
+            if (data.length > 10) {
+                const moreDiv = document.createElement('div');
+                moreDiv.className = 'p-2 text-center text-gray-500 text-sm bg-gray-50';
+                moreDiv.textContent = `... and ${data.length - 10} more records`;
+                tableContainer.appendChild(moreDiv);
+            }
+            
+            messageDiv.appendChild(tableContainer);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                
+                const statItems = [
+                    { label: 'Users', value: stats.users || 0, icon: '👥' },
+                    { label: 'Restaurants', value: stats.restaurants || 0, icon: '🏪' },
+                    { label: 'Orders', value: stats.orders || 0, icon: '📦' },
+                    { label: 'Reviews', value: stats.reviews || 0, icon: '⭐' },
+                ];
+                
+                statsContainer.innerHTML = statItems.map(item => `
+                    <div class="bg-white rounded-lg shadow p-4 text-center">
+                        <div class="text-2xl mb-1">${item.icon}</div>
+                        <div class="text-2xl font-bold text-gray-800">${item.value.toLocaleString()}</div>
+                        <div class="text-sm text-gray-600">${item.label}</div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+    </script>
+</body>
+</html>
