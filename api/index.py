@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
-import pandas as pd
 from datetime import datetime
 import openai
 import anthropic
@@ -90,16 +89,33 @@ class DatrikAnalyst:
         8. reviews: review_id, order_id, user_id, restaurant_id, food_rating, delivery_rating, overall_rating, review_date
         """
     
-    def execute_query(self, query: str) -> pd.DataFrame:
-        """Execute SQL query and return DataFrame"""
+    def execute_query(self, query: str) -> dict:
+        """Execute SQL query and return results as dict"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            df = pd.read_sql_query(query, conn)
+            conn = sqlite3.connect(':memory:')  # Use in-memory for demo
+            cursor = conn.cursor()
+            cursor.execute(query)
+            
+            # Get column names
+            columns = [description[0] for description in cursor.description]
+            
+            # Get all rows
+            rows = cursor.fetchall()
+            
+            # Convert to list of dictionaries
+            results = []
+            for row in rows:
+                results.append(dict(zip(columns, row)))
+            
             conn.close()
-            return df
+            return {
+                'data': results,
+                'columns': columns,
+                'row_count': len(results)
+            }
         except Exception as e:
             print(f"Database error: {str(e)}")
-            return pd.DataFrame()
+            return {'data': [], 'columns': [], 'row_count': 0}
     
     def natural_language_to_sql(self, question: str) -> tuple[str, str]:
         """Convert natural language question to SQL"""
@@ -172,21 +188,25 @@ class DatrikAnalyst:
         
         return "SELECT 'No AI available' as message", "Error"
     
-    def analyze_results(self, question: str, df: pd.DataFrame, provider: str) -> str:
+    def analyze_results(self, question: str, result_data: dict, provider: str) -> str:
         """Analyze query results"""
-        if df.empty:
+        data = result_data['data']
+        columns = result_data['columns']
+        row_count = result_data['row_count']
+        
+        if row_count == 0:
             return "No data found for your query."
         
         # Simple analysis for web deployment
         analysis = f"**Query Results ({provider}):**\n\n"
-        analysis += f"Found {len(df):,} records.\n\n"
+        analysis += f"Found {row_count:,} records.\n\n"
         
         # Show top 3 results
         analysis += "**Top Results:**\n"
-        for i, row in df.head(3).iterrows():
-            analysis += f"{i+1}. "
-            for col in df.columns[:3]:
-                analysis += f"{col}: {row[col]} | "
+        for i, row in enumerate(data[:3], 1):
+            analysis += f"{i}. "
+            for col in columns[:3]:
+                analysis += f"{col}: {row.get(col, 'N/A')} | "
             analysis = analysis.rstrip("| ") + "\n"
         
         return analysis
@@ -211,20 +231,17 @@ def query():
         sql_query, provider = datrik.natural_language_to_sql(question)
         
         # Execute query
-        df = datrik.execute_query(sql_query)
+        result_data = datrik.execute_query(sql_query)
         
         # Analyze results
-        analysis = datrik.analyze_results(question, df, provider)
-        
-        # Convert DataFrame to JSON
-        data_json = df.to_dict('records') if not df.empty else []
+        analysis = datrik.analyze_results(question, result_data, provider)
         
         return jsonify({
             'sql_query': sql_query,
             'provider': provider,
             'analysis': analysis,
-            'data': data_json,
-            'row_count': len(df)
+            'data': result_data['data'],
+            'row_count': result_data['row_count']
         })
         
     except Exception as e:
