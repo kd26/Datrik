@@ -219,25 +219,41 @@ class DatrikAnalyst:
         return "SELECT 'No AI available' as message", "Error"
     
     def analyze_results(self, question: str, result_data: dict, provider: str) -> str:
-        """Analyze query results"""
+        """Analyze query results in a conversational manner"""
         data = result_data['data']
         columns = result_data['columns']
         row_count = result_data['row_count']
         
         if row_count == 0:
-            return "No data found for your query."
+            return "I couldn't find any data matching your query. Try asking about something else!"
         
-        # Simple analysis for web deployment
-        analysis = f"**Query Results ({provider}):**\n\n"
-        analysis += f"Found {row_count:,} records.\n\n"
+        # Create conversational analysis based on data type
+        if not data:
+            return f"Found {row_count:,} records, but no data to display."
         
-        # Show top 3 results
-        analysis += "**Top Results:**\n"
-        for i, row in enumerate(data[:3], 1):
-            analysis += f"{i}. "
-            for col in columns[:3]:
-                analysis += f"{col}: {row.get(col, 'N/A')} | "
-            analysis = analysis.rstrip("| ") + "\n"
+        # Check if this looks like restaurant/order data
+        first_row = data[0]
+        if 'name' in first_row and 'total_orders' in first_row:
+            top_name = first_row['name']
+            top_orders = first_row['total_orders']
+            analysis = f"Based on your query, I found {row_count:,} restaurants. "
+            analysis += f"The top performer is **{top_name}** with {top_orders:,} orders. "
+            if len(data) > 1:
+                second_name = data[1]['name']
+                second_orders = data[1]['total_orders']
+                analysis += f"Following closely is **{second_name}** with {second_orders:,} orders."
+        elif 'cuisine_type' in first_row:
+            analysis = f"I analyzed {row_count:,} cuisine types. "
+            if 'total_orders' in first_row:
+                top_cuisine = first_row['cuisine_type']
+                analysis += f"**{top_cuisine}** cuisine is the most popular based on your criteria."
+        else:
+            # Generic analysis
+            analysis = f"Found {row_count:,} records matching your query. "
+            if row_count > 5:
+                analysis += "Here are the top results based on your criteria."
+            else:
+                analysis += "Here's what the data shows:"
         
         return analysis
 
