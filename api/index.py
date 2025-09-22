@@ -230,37 +230,33 @@ class DatrikAnalyst:
         data_sample = data[:10] if data else []
         
         # Create rich context prompt for AI
-        context_prompt = f"""You are an expert food delivery business analyst helping interpret data results.
+        context_prompt = f"""You are a super smart analyst. Give me the key insights from this data in simple, human language.
 
-User's Question: "{question}"
-SQL Query Used: {sql_query}
-Records Found: {row_count:,}
-Data Sample: {json.dumps(data_sample, indent=2) if data_sample else "No data available"}
+User asked: "{question}"
+Data found: {row_count:,} records
+Results: {json.dumps(data_sample, indent=2) if data_sample else "No data available"}
 
-Please provide a conversational, insightful response that includes:
+Response format:
+- Start with a quick answer to their question
+- Give 2-3 bullet points with the most important takeaways
+- End with 1 actionable recommendation
 
-1. **Opening**: Start with an engaging acknowledgment of their question
-2. **Key Findings**: Interpret the data in business terms (avoid just repeating numbers)
-3. **Business Context**: What do these results mean for the food delivery business?
-4. **Insights**: Notable patterns, trends, or standout performers
-5. **Actionable Recommendations**: Specific steps they could take based on this data
-
-Guidelines:
-- Be conversational and professional, like a business consultant
+Rules:
+- Use simple English, no jargon or fancy words
+- Keep it short and punchy
 - Use **bold** for key numbers and insights
-- Explain what numbers mean in practical terms (e.g., "2.47 orders means roughly every 37 days")
-- Focus on business implications, not just data description
-- Keep response concise but informative (2-3 paragraphs max)
-- Avoid technical jargon or mentioning SQL/databases"""
+- Focus on what matters for business decisions
+- No fluff or corporate speak
+- Maximum 3-4 sentences total"""
 
         # Try AI-powered analysis first
         if self.anthropic_client:
             try:
                 response = self.anthropic_client.messages.create(
                     model="claude-3-haiku-20240307",
-                    max_tokens=800,
-                    temperature=0.3,
-                    system="You are an expert food delivery business analyst with deep industry knowledge. Provide actionable insights in a conversational, professional manner.",
+                    max_tokens=300,
+                    temperature=0.2,
+                    system="You are a super smart analyst. Give concise, actionable insights in simple language. No corporate fluff.",
                     messages=[{"role": "user", "content": context_prompt}]
                 )
                 return response.content[0].text.strip()
