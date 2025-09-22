@@ -3,9 +3,9 @@
 .env.local
 .env.production
 
-# Database files
-*.db
-data/*.db
+# Database files (allow datrik.db for deployment)
+# *.db
+# data/*.db
 
 # Python cache
 __pycache__/

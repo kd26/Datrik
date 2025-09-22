@@ -17,7 +17,23 @@ app = Flask(__name__,
 app.secret_key = os.environ.get('SECRET_KEY', 'datrik-secret-key-2025')
 
 class DatrikAnalyst:
-    def __init__(self, db_path: str = 'data/datrik.db'):
+    def __init__(self, db_path: str = None):
+        # Set correct database path for Vercel deployment
+        if db_path is None:
+            # Try different possible paths
+            possible_paths = [
+                'data/datrik.db',
+                '../data/datrik.db', 
+                '/var/task/data/datrik.db',
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'datrik.db')
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    db_path = path
+                    break
+            else:
+                db_path = 'data/datrik.db'  # fallback
         self.db_path = db_path
         
         # Initialize AI clients
@@ -93,7 +109,8 @@ class DatrikAnalyst:
     def execute_query(self, query: str) -> dict:
         """Execute SQL query and return results as dict"""
         try:
-            conn = sqlite3.connect(':memory:')  # Use in-memory for demo
+            # Try to connect to the actual database file
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute(query)
             
