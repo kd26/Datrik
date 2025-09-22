@@ -218,44 +218,81 @@ class DatrikAnalyst:
         
         return "SELECT 'No AI available' as message", "Error"
     
-    def analyze_results(self, question: str, result_data: dict, provider: str) -> str:
-        """Analyze query results in a conversational manner"""
+    def generate_ai_insights(self, question: str, sql_query: str, result_data: dict, provider: str) -> str:
+        """Use Anthropic to generate conversational insights from data"""
         data = result_data['data']
-        columns = result_data['columns']
         row_count = result_data['row_count']
         
         if row_count == 0:
             return "I couldn't find any data matching your query. Try asking about something else!"
         
-        # Create conversational analysis based on data type
+        # Prepare data sample for AI context (limit to first 10 rows for token efficiency)
+        data_sample = data[:10] if data else []
+        
+        # Create rich context prompt for AI
+        context_prompt = f"""You are an expert food delivery business analyst helping interpret data results.
+
+User's Question: "{question}"
+SQL Query Used: {sql_query}
+Records Found: {row_count:,}
+Data Sample: {json.dumps(data_sample, indent=2) if data_sample else "No data available"}
+
+Please provide a conversational, insightful response that includes:
+
+1. **Opening**: Start with an engaging acknowledgment of their question
+2. **Key Findings**: Interpret the data in business terms (avoid just repeating numbers)
+3. **Business Context**: What do these results mean for the food delivery business?
+4. **Insights**: Notable patterns, trends, or standout performers
+5. **Actionable Recommendations**: Specific steps they could take based on this data
+
+Guidelines:
+- Be conversational and professional, like a business consultant
+- Use **bold** for key numbers and insights
+- Explain what numbers mean in practical terms (e.g., "2.47 orders means roughly every 37 days")
+- Focus on business implications, not just data description
+- Keep response concise but informative (2-3 paragraphs max)
+- Avoid technical jargon or mentioning SQL/databases"""
+
+        # Try AI-powered analysis first
+        if self.anthropic_client:
+            try:
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-haiku-20240307",
+                    max_tokens=800,
+                    temperature=0.3,
+                    system="You are an expert food delivery business analyst with deep industry knowledge. Provide actionable insights in a conversational, professional manner.",
+                    messages=[{"role": "user", "content": context_prompt}]
+                )
+                return response.content[0].text.strip()
+            except Exception as e:
+                print(f"AI insight generation failed: {e}")
+        
+        # Fallback to basic analysis if AI fails
+        return self.basic_analysis(result_data)
+    
+    def basic_analysis(self, result_data: dict) -> str:
+        """Fallback analysis when AI is unavailable"""
+        data = result_data['data']
+        row_count = result_data['row_count']
+        
         if not data:
             return f"Found {row_count:,} records, but no data to display."
         
-        # Check if this looks like restaurant/order data
+        # Simple fallback based on data structure
         first_row = data[0]
         if 'name' in first_row and 'total_orders' in first_row:
             top_name = first_row['name']
             top_orders = first_row['total_orders']
-            analysis = f"Based on your query, I found {row_count:,} restaurants. "
-            analysis += f"The top performer is **{top_name}** with {top_orders:,} orders. "
-            if len(data) > 1:
-                second_name = data[1]['name']
-                second_orders = data[1]['total_orders']
-                analysis += f"Following closely is **{second_name}** with {second_orders:,} orders."
+            return f"Found {row_count:,} restaurants. **{top_name}** leads with {top_orders:,} orders."
         elif 'cuisine_type' in first_row:
-            analysis = f"I analyzed {row_count:,} cuisine types. "
-            if 'total_orders' in first_row:
-                top_cuisine = first_row['cuisine_type']
-                analysis += f"**{top_cuisine}** cuisine is the most popular based on your criteria."
+            top_cuisine = first_row['cuisine_type']
+            return f"Analyzed {row_count:,} cuisine types. **{top_cuisine}** appears to be the top performer."
         else:
-            # Generic analysis
-            analysis = f"Found {row_count:,} records matching your query. "
-            if row_count > 5:
-                analysis += "Here are the top results based on your criteria."
-            else:
-                analysis += "Here's what the data shows:"
-        
-        return analysis
+            return f"Found {row_count:,} records matching your query. Here are the results:"
+    
+    def analyze_results(self, question: str, result_data: dict, provider: str, sql_query: str = "") -> str:
+        """Generate AI-powered conversational analysis of query results"""
+        return self.generate_ai_insights(question, sql_query, result_data, provider)
 
 # Initialize Datrik
 datrik = DatrikAnalyst()
@@ -279,8 +316,8 @@ def query():
         # Execute query
         result_data = datrik.execute_query(sql_query)
         
-        # Analyze results
-        analysis = datrik.analyze_results(question, result_data, provider)
+        # Analyze results with AI insights
+        analysis = datrik.analyze_results(question, result_data, provider, sql_query)
         
         return jsonify({
             'sql_query': sql_query,

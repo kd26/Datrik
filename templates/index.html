@@ -393,25 +393,8 @@
             const bubble = document.createElement('div');
             bubble.className = 'max-w-4xl w-full p-4 rounded-2xl message-assistant';
             
-            // Create conversational analysis
-            let conversationalText = '';
-            if (data.data && data.data.length > 0) {
-                const topResult = data.data[0];
-                const keys = Object.keys(topResult);
-                
-                if (keys.includes('name') && keys.includes('total_orders')) {
-                    conversationalText = `Great question! I found **${data.row_count}** restaurants in your data. Here are the top performers:\n\n`;
-                    data.data.slice(0, 3).forEach((item, index) => {
-                        conversationalText += `**${index + 1}. ${item.name}** - ${item.total_orders} orders\n`;
-                    });
-                    conversationalText += `\nThe leading restaurant is **${data.data[0].name}** with ${data.data[0].total_orders} total orders. `;
-                } else {
-                    conversationalText = `I found **${data.row_count}** records that match your query. Here's what the data shows:\n\n`;
-                    conversationalText += data.analysis;
-                }
-            } else {
-                conversationalText = "I couldn't find any data matching your query. Try asking about something else!";
-            }
+            // Use AI-generated analysis directly
+            let conversationalText = data.analysis || "I couldn't find any data matching your query. Try asking about something else!";
             
             bubble.innerHTML = `
                 <div class="mb-4">${conversationalText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')}</div>
