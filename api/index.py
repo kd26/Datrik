@@ -42,20 +42,32 @@ class DatrikAnalyst:
         
         # Try to initialize Anthropic (Primary)
         anthropic_key = os.getenv('ANTHROPIC_API_KEY')
+        print(f"Debug: ANTHROPIC_API_KEY found: {bool(anthropic_key)}")
         if anthropic_key and anthropic_key != 'your_anthropic_api_key_here':
+            print(f"Debug: Attempting Anthropic initialization...")
             try:
                 self.anthropic_client = anthropic.Client(api_key=anthropic_key)
+                print(f"Debug: Anthropic client initialized successfully")
             except Exception as e:
                 print(f"Anthropic initialization failed: {e}")
+        else:
+            print(f"Debug: Anthropic key not found or is placeholder")
         
         # Try to initialize OpenAI (Backup)
         openai_key = os.getenv('OPENAI_API_KEY')
+        print(f"Debug: OPENAI_API_KEY found: {bool(openai_key)}")
         if openai_key and openai_key != 'your_openai_api_key_here':
+            print(f"Debug: Attempting OpenAI initialization...")
             try:
                 openai.api_key = openai_key
                 self.openai_client = True  # Flag to indicate OpenAI is available
+                print(f"Debug: OpenAI client initialized successfully")
             except Exception as e:
                 print(f"OpenAI initialization failed: {e}")
+        else:
+            print(f"Debug: OpenAI key not found or is placeholder")
+            
+        print(f"Debug: Final state - Anthropic: {bool(self.anthropic_client)}, OpenAI: {bool(self.openai_client)}")
         
         # Fallback SQL templates
         self.fallback_queries = {
@@ -282,6 +294,25 @@ def stats():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug')
+def debug():
+    """Debug endpoint to check environment variables and AI client status"""
+    anthropic_key = os.getenv('ANTHROPIC_API_KEY')
+    openai_key = os.getenv('OPENAI_API_KEY')
+    
+    return jsonify({
+        'environment_variables': {
+            'ANTHROPIC_API_KEY': f"{'✅ Set' if anthropic_key else '❌ Missing'} ({len(anthropic_key) if anthropic_key else 0} chars)",
+            'OPENAI_API_KEY': f"{'✅ Set' if openai_key else '❌ Missing'} ({len(openai_key) if openai_key else 0} chars)"
+        },
+        'ai_clients': {
+            'anthropic_initialized': bool(datrik.anthropic_client),
+            'openai_initialized': bool(datrik.openai_client)
+        },
+        'database_path': datrik.db_path,
+        'database_exists': os.path.exists(datrik.db_path)
+    })
 
 # For local development
 if __name__ == '__main__':
