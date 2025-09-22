@@ -291,6 +291,9 @@
         // Chat history storage
         let conversationHistory = JSON.parse(localStorage.getItem('datrik-chat-history') || '[]');
         
+        // Conversation context for AI
+        let conversationContext = [];
+        
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
             loadStats();
@@ -359,7 +362,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ question })
+                    body: JSON.stringify({ 
+                        question: question,
+                        conversation_history: conversationContext
+                    })
                 });
                 
                 const data = await response.json();
@@ -370,6 +376,19 @@
                     
                     // Add conversational analysis
                     addConversationalMessage(data);
+                    
+                    // Update conversation context for AI
+                    conversationContext.push({
+                        question: question,
+                        response: data.analysis,
+                        sql_query: data.sql_query,
+                        data_summary: data.data ? `${data.row_count} records found` : 'No data'
+                    });
+                    
+                    // Keep last 5 exchanges for context
+                    if (conversationContext.length > 5) {
+                        conversationContext = conversationContext.slice(-5);
+                    }
                 } else {
                     document.getElementById(typingId).remove();
                     addMessage('assistant', `❌ Error: ${data.error}`);

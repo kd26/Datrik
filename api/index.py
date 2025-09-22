@@ -218,7 +218,7 @@ class DatrikAnalyst:
         
         return "SELECT 'No AI available' as message", "Error"
     
-    def generate_ai_insights(self, question: str, sql_query: str, result_data: dict, provider: str) -> str:
+    def generate_ai_insights(self, question: str, sql_query: str, result_data: dict, provider: str, conversation_history: list = None) -> str:
         """Use Anthropic to generate conversational insights from data"""
         data = result_data['data']
         row_count = result_data['row_count']
@@ -229,12 +229,21 @@ class DatrikAnalyst:
         # Prepare data sample for AI context (limit to first 10 rows for token efficiency)
         data_sample = data[:10] if data else []
         
+        # Build conversation context
+        context_section = ""
+        if conversation_history and len(conversation_history) > 0:
+            recent_context = conversation_history[-3:]  # Last 3 exchanges for context
+            context_section = f"\nPrevious conversation context:\n"
+            for i, exchange in enumerate(recent_context):
+                context_section += f"Q{i+1}: {exchange.get('question', '')}\nA{i+1}: {exchange.get('response', '')[:200]}...\n"
+            context_section += f"\nNote: If the current question refers to 'above data', 'previous data', 'that data', or similar references, use the previous conversation context.\n"
+
         # Create rich context prompt for AI
         context_prompt = f"""You are a super smart analyst. Give me the key insights from this data in simple, human language.
 
-User asked: "{question}"
+Current question: "{question}"
 Data found: {row_count:,} records
-Results: {json.dumps(data_sample, indent=2) if data_sample else "No data available"}
+Current results: {json.dumps(data_sample, indent=2) if data_sample else "No data available"}{context_section}
 
 Response format:
 - Start with a quick answer to their question
@@ -247,7 +256,8 @@ Rules:
 - Use **bold** for key numbers and insights
 - Focus on what matters for business decisions
 - No fluff or corporate speak
-- Maximum 3-4 sentences total"""
+- Maximum 3-4 sentences total
+- If question refers to previous data/context, acknowledge and use it"""
 
         # Try AI-powered analysis first
         if self.anthropic_client:
@@ -286,9 +296,9 @@ Rules:
         else:
             return f"Found {row_count:,} records matching your query. Here are the results:"
     
-    def analyze_results(self, question: str, result_data: dict, provider: str, sql_query: str = "") -> str:
+    def analyze_results(self, question: str, result_data: dict, provider: str, sql_query: str = "", conversation_history: list = None) -> str:
         """Generate AI-powered conversational analysis of query results"""
-        return self.generate_ai_insights(question, sql_query, result_data, provider)
+        return self.generate_ai_insights(question, sql_query, result_data, provider, conversation_history)
 
 # Initialize Datrik
 datrik = DatrikAnalyst()
@@ -302,6 +312,7 @@ def query():
     try:
         data = request.get_json()
         question = data.get('question', '')
+        conversation_history = data.get('conversation_history', [])
         
         if not question:
             return jsonify({'error': 'No question provided'}), 400
@@ -313,7 +324,7 @@ def query():
         result_data = datrik.execute_query(sql_query)
         
         # Analyze results with AI insights
-        analysis = datrik.analyze_results(question, result_data, provider, sql_query)
+        analysis = datrik.analyze_results(question, result_data, provider, sql_query, conversation_history)
         
         return jsonify({
             'sql_query': sql_query,
