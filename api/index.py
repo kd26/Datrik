@@ -46,7 +46,7 @@ class DatrikAnalyst:
         if anthropic_key and anthropic_key != 'your_anthropic_api_key_here':
             print(f"Debug: Attempting Anthropic initialization...")
             try:
-                self.anthropic_client = anthropic.Client(api_key=anthropic_key)
+                self.anthropic_client = anthropic.Anthropic(api_key=anthropic_key)
                 print(f"Debug: Anthropic client initialized successfully")
             except Exception as e:
                 print(f"Anthropic initialization failed: {e}")
@@ -169,14 +169,17 @@ class DatrikAnalyst:
         # Try Anthropic first (PRIMARY)
         if self.anthropic_client:
             try:
-                response = self.anthropic_client.completion(
-                    model="claude-2",
-                    prompt=f"\n\nHuman: {system_prompt}\n\nQuestion: {question}\n\nSQL Query:\n\nAssistant:",
-                    max_tokens_to_sample=500,
-                    temperature=0.1
+                response = self.anthropic_client.messages.create(
+                    model="claude-3-haiku-20240307",
+                    max_tokens=500,
+                    temperature=0.1,
+                    system=system_prompt,
+                    messages=[
+                        {"role": "user", "content": f"Question: {question}\n\nPlease provide only the SQL query, no explanations."}
+                    ]
                 )
                 
-                sql_query = response.completion.strip()
+                sql_query = response.content[0].text.strip()
                 sql_query = re.sub(r'```sql\n?', '', sql_query)
                 sql_query = re.sub(r'```\n?', '', sql_query)
                 
