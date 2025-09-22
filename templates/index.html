@@ -114,23 +114,21 @@
         }
         
         .scrollbar-thin::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
         }
         
         .scrollbar-thin::-webkit-scrollbar-track {
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            margin-right: 2px;
+            border-radius: 4px;
         }
         
         .scrollbar-thin::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 3px;
-            margin-right: 2px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 4px;
         }
         
         .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.6);
         }
     </style>
 </head>
@@ -205,10 +203,10 @@
         </div>
         
         <!-- Chat Area -->
-        <div class="flex-1 min-h-0 p-6">
+        <div class="flex-1 min-h-0 p-6 pr-0">
             <div class="h-full flex flex-col max-w-4xl mx-auto">
                 <!-- Messages Container -->
-                <div class="flex-1 min-h-0 mb-6">
+                <div class="flex-1 min-h-0 mb-6 pr-6">
                     <div class="h-full overflow-y-auto scrollbar-thin" id="chat-messages">
                         <!-- Welcome Message -->
                         <div class="flex justify-center py-12">
@@ -250,7 +248,7 @@
                 </div>
                 
                 <!-- Input Area -->
-                <div class="glass-effect rounded-2xl p-4">
+                <div class="glass-effect rounded-2xl p-4 mr-6">
                     <form id="query-form" class="flex items-end space-x-4">
                         <div class="flex-1">
                             <textarea 
