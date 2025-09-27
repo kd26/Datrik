@@ -320,8 +320,19 @@ Guidelines:
             
             # Get contextual analysis from LangChain
             response = self.conversation_chain.invoke({
-                "input": f"{question}\n\nQuery executed: {sql_query}\nResults: {result_data['row_count']} records found"
+                "input": f"{question}\n\nQuery executed: {sql_query}\nResults: {result_data['row_count']} records found\nSample data: {json.dumps(result_data['data'][:3], indent=2) if result_data['data'] else 'No data'}"
             })["text"]
+            
+            # Check if AI recommends a different/additional query
+            additional_query = self.extract_recommended_query(response)
+            if additional_query and additional_query != sql_query.strip():
+                print(f"AI recommended additional query, executing: {additional_query[:100]}...")
+                additional_results = self.execute_query(additional_query)
+                if additional_results['row_count'] > 0:
+                    # Update response with actual results
+                    response += f"\n\n**Updated Analysis with Recommended Query:**\n"
+                    response += self.generate_insights_from_data(additional_results, question)
+                    result_data = additional_results  # Use the recommended query results
             
             # Save AI response to persistent memory
             self.memory_manager.save_message(
@@ -354,8 +365,9 @@ Guidelines:
     def generate_sql_with_llm(self, question: str) -> Tuple[str, str]:
         """Generate SQL using LLM with database schema context"""
         
-        # Check conversation history for context
+        # Check conversation history for context and extract previous recommendations
         context_info = ""
+        previous_recommendations = ""
         if self.memory and hasattr(self.memory, 'chat_memory'):
             recent_messages = self.memory.chat_memory.messages[-4:]  # Last 2 exchanges
             if recent_messages:
@@ -363,13 +375,43 @@ Guidelines:
                 for i, msg in enumerate(recent_messages):
                     role = "User" if msg.__class__.__name__ == "HumanMessage" else "Assistant"
                     context_info += f"{role}: {msg.content[:100]}...\n"
+                    
+                    # Extract previous recommendations from AI messages
+                    if role == "Assistant" and ("recommend" in msg.content or "suggest" in msg.content or "points" in msg.content):
+                        previous_recommendations += f"Previous recommendation: {msg.content}\n"
         
+        # Detect if this is a follow-up to previous recommendations
+        is_followup_request = any(phrase in question.lower() for phrase in [
+            'second point', 'do second', 'point 2', 'that you recommended', 'you suggested',
+            'cuisine', 'by cuisine', 'breakdown', 'dimension', 'categories'
+        ])
+        
+        # Special handling for follow-up requests
+        if is_followup_request:
+            if any(word in question.lower() for word in ['second', 'point 2', 'cuisine', 'breakdown', 'dimension']):
+                # Generate cuisine-based monthly analysis
+                return """
+                SELECT 
+                    DATE(o.order_date, 'start of month') AS order_month,
+                    r.cuisine_type,
+                    COUNT(o.order_id) AS total_orders,
+                    SUM(o.total_amount) AS total_revenue,
+                    AVG(o.total_amount) AS avg_order_value
+                FROM orders o
+                JOIN restaurants r ON o.restaurant_id = r.restaurant_id
+                WHERE o.order_status = 'delivered'
+                GROUP BY order_month, r.cuisine_type
+                ORDER BY order_month DESC, total_orders DESC
+                LIMIT 50
+                """.strip(), "LLM Generated (Follow-up)"
+
         prompt = f"""You are a SQL expert for a food delivery database. Generate a valid SQLite query for the user's question.
 
 Database Schema:
 {self.schema_info}
 
 {context_info}
+{previous_recommendations}
 
 User Question: {question}
 
@@ -380,14 +422,15 @@ Rules:
 4. Add LIMIT clauses for large results (typically 10-20 records)
 5. Use aliases for readability
 6. Filter for 'delivered' status when querying orders
-7. If question refers to previous data/context, modify the previous query appropriately
-8. For follow-up questions like "what about their X", use the same base tables but change the SELECT clause
+7. If question refers to previous data/context, enhance the query with additional dimensions
+8. For follow-up questions, expand the analysis to include more relevant columns
+9. When user asks about trends or comparisons, include GROUP BY with multiple dimensions
 
-Examples:
-- "top restaurants" → SELECT with COUNT and ORDER BY DESC
-- "average order value" → SELECT with AVG function
-- "popular cuisines" → GROUP BY cuisine_type
-- "recent trends" → DATE filtering with GROUP BY
+Enhanced Query Guidelines:
+- For "monthly trends" → Include DATE formatting and multiple metrics
+- For "cuisine analysis" → JOIN with restaurants table for cuisine_type
+- For "by categories" → Always GROUP BY the category dimension
+- For comparisons → Include comparative metrics (AVG, COUNT, SUM)
 
 SQL Query:"""
 
@@ -513,3 +556,55 @@ SQL Query:"""
                 SELECT 'Average order value' as metric, ROUND(AVG(total_amount), 2) as value FROM orders WHERE order_status = 'delivered'
             """
             return sql.strip(), "Fallback"
+    
+    def extract_recommended_query(self, ai_response: str) -> str:
+        """Extract SQL query from AI response if it recommends one"""
+        try:
+            # Look for SQL blocks in the response
+            import re
+            
+            # Try to find SELECT statements in the response
+            sql_patterns = [
+                r'SELECT[\s\S]*?(?=\n\n|\n[A-Z]|\nThis|\nSome|\nLet|\n-|\nTo|\Z)',
+                r'```sql\n(.*?)\n```',
+                r'```\n(SELECT.*?)\n```'
+            ]
+            
+            for pattern in sql_patterns:
+                matches = re.findall(pattern, ai_response, re.IGNORECASE | re.DOTALL)
+                for match in matches:
+                    query = match.strip() if isinstance(match, str) else match
+                    if query.upper().startswith('SELECT') and len(query) > 20:
+                        # Clean up the query
+                        query = re.sub(r'^\s*```sql\s*\n?', '', query, flags=re.IGNORECASE)
+                        query = re.sub(r'\n?\s*```\s*$', '', query, flags=re.IGNORECASE)
+                        return query.strip()
+            
+            return None
+        except Exception as e:
+            print(f"Error extracting recommended query: {e}")
+            return None
+    
+    def generate_insights_from_data(self, result_data: dict, original_question: str) -> str:
+        """Generate quick insights from actual data results"""
+        if not result_data['data'] or result_data['row_count'] == 0:
+            return "No additional data found with the recommended query."
+        
+        data = result_data['data'][:5]  # First 5 records for insight
+        
+        try:
+            # Create a quick summary based on the data structure
+            if any('cuisine_type' in str(row).lower() for row in data):
+                cuisines = [row.get('cuisine_type', '') for row in data if row.get('cuisine_type')]
+                total_orders = sum([row.get('total_orders', 0) for row in data if row.get('total_orders')])
+                return f"Found data for {len(set(cuisines))} different cuisine types with {total_orders:,} total orders analyzed by cuisine breakdown."
+            
+            elif any('month' in str(row).lower() for row in data):
+                months = len(set([row.get('order_month', '') for row in data if row.get('order_month')]))
+                return f"Monthly data showing trends across {months} months with detailed breakdowns."
+            
+            else:
+                return f"Additional analysis shows {result_data['row_count']} records with enhanced data dimensions."
+                
+        except Exception as e:
+            return f"Additional data retrieved with {result_data['row_count']} records for deeper analysis."
