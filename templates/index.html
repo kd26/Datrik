@@ -286,8 +286,9 @@
         // Chat history storage
         let conversationHistory = JSON.parse(localStorage.getItem('datrik-chat-history') || '[]');
         
-        // Conversation context for AI
-        let conversationContext = [];
+        // Session management for LangChain memory
+        let currentSessionId = localStorage.getItem('datrik-current-session') || null;
+        let userIdentifier = 'user-' + Date.now(); // Simple user identification
         
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
@@ -295,6 +296,9 @@
             loadChatHistory();
             updateTime();
             setInterval(updateTime, 1000);
+            
+            // Initialize or create session
+            initializeSession();
             
             // Auto-resize textarea
             questionInput.addEventListener('input', function() {
@@ -359,7 +363,7 @@
                     },
                     body: JSON.stringify({ 
                         question: question,
-                        conversation_history: conversationContext
+                        session_id: currentSessionId
                     })
                 });
                 
@@ -369,21 +373,14 @@
                     // Remove typing indicator
                     document.getElementById(typingId).remove();
                     
+                    // Update session ID if provided
+                    if (data.session_id) {
+                        currentSessionId = data.session_id;
+                        localStorage.setItem('datrik-current-session', currentSessionId);
+                    }
+                    
                     // Add conversational analysis
                     addConversationalMessage(data);
-                    
-                    // Update conversation context for AI
-                    conversationContext.push({
-                        question: question,
-                        response: data.analysis,
-                        sql_query: data.sql_query,
-                        data_summary: data.data ? `${data.row_count} records found` : 'No data'
-                    });
-                    
-                    // Keep last 5 exchanges for context
-                    if (conversationContext.length > 5) {
-                        conversationContext = conversationContext.slice(-5);
-                    }
                 } else {
                     document.getElementById(typingId).remove();
                     addMessage('assistant', `❌ Error: ${data.error}`);
@@ -697,6 +694,61 @@
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
+        };
+        
+        async function initializeSession() {
+            if (!currentSessionId) {
+                try {
+                    const response = await fetch('/api/sessions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            user_identifier: userIdentifier
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (response.ok && data.session_id) {
+                        currentSessionId = data.session_id;
+                        localStorage.setItem('datrik-current-session', currentSessionId);
+                        console.log('New session created:', currentSessionId);
+                    }
+                } catch (error) {
+                    console.error('Failed to create session:', error);
+                }
+            } else {
+                console.log('Using existing session:', currentSessionId);
+            }
+        }
+        
+        // Start new conversation (clear memory)
+        window.startNewConversation = async function() {
+            try {
+                const response = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        user_identifier: userIdentifier
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok && data.session_id) {
+                    currentSessionId = data.session_id;
+                    localStorage.setItem('datrik-current-session', currentSessionId);
+                    
+                    // Clear chat messages
+                    chatMessages.innerHTML = '';
+                    
+                    console.log('New conversation started:', currentSessionId);
+                }
+            } catch (error) {
+                console.error('Failed to start new conversation:', error);
+            }
         };
         
         // Clear history function (can be called from console)

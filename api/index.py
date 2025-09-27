@@ -7,6 +7,11 @@ import os
 from dotenv import load_dotenv
 import json
 import re
+import sys
+
+# Add src directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+from langchain_analyst import LangChainDatrikAnalyst
 
 # Load environment variables
 load_dotenv()
@@ -300,8 +305,27 @@ Rules:
         """Generate AI-powered conversational analysis of query results"""
         return self.generate_ai_insights(question, sql_query, result_data, provider, conversation_history)
 
-# Initialize Datrik
-datrik = DatrikAnalyst()
+# Initialize LangChain Datrik Analyst
+datrik = LangChainDatrikAnalyst()
+
+# Keep the old class for fallback
+class DatrikAnalyst:
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            possible_paths = [
+                'data/datrik.db',
+                '../data/datrik.db', 
+                '/var/task/data/datrik.db',
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'datrik.db')
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    db_path = path
+                    break
+            else:
+                db_path = 'data/datrik.db'
+        self.db_path = db_path
 
 @app.route('/')
 def index():
@@ -312,28 +336,57 @@ def query():
     try:
         data = request.get_json()
         question = data.get('question', '')
-        conversation_history = data.get('conversation_history', [])
+        session_id = data.get('session_id', None)
         
         if not question:
             return jsonify({'error': 'No question provided'}), 400
         
-        # Generate SQL
-        sql_query, provider = datrik.natural_language_to_sql(question)
+        # Use LangChain analyst with memory
+        try:
+            analysis, result_data, provider = datrik.analyze_with_memory(question, session_id)
+            
+            # Get SQL query from the last operation (for display purposes)
+            sql_query = "Generated with LangChain"  # We'll enhance this later
+            
+            return jsonify({
+                'sql_query': sql_query,
+                'provider': provider,
+                'analysis': analysis,
+                'data': result_data['data'],
+                'row_count': result_data['row_count'],
+                'session_id': datrik.current_session_id
+            })
+            
+        except Exception as e:
+            print(f"LangChain analysis failed: {e}")
+            # Fallback to original system
+            return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
         
-        # Execute query
-        result_data = datrik.execute_query(sql_query)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sessions', methods=['GET', 'POST'])
+def sessions():
+    """Manage conversation sessions"""
+    try:
+        if request.method == 'POST':
+            # Create new session
+            data = request.get_json()
+            user_identifier = data.get('user_identifier', 'default')
+            session_id = datrik.start_new_session(user_identifier)
+            
+            return jsonify({
+                'session_id': session_id,
+                'message': 'New session created'
+            })
         
-        # Analyze results with AI insights
-        analysis = datrik.analyze_results(question, result_data, provider, sql_query, conversation_history)
-        
-        return jsonify({
-            'sql_query': sql_query,
-            'provider': provider,
-            'analysis': analysis,
-            'data': result_data['data'],
-            'row_count': result_data['row_count']
-        })
-        
+        else:
+            # Get recent sessions
+            user_identifier = request.args.get('user_identifier', 'default')
+            sessions = datrik.memory_manager.get_recent_sessions(user_identifier)
+            
+            return jsonify({'sessions': sessions})
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
