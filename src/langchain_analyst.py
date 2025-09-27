@@ -427,10 +427,17 @@ Rules:
 9. When user asks about trends or comparisons, include GROUP BY with multiple dimensions
 
 Enhanced Query Guidelines:
-- For "monthly trends" → Include DATE formatting and multiple metrics
+- For "weekly trends" → GROUP BY DATE(order_date, 'weekday 0', '-6 days') to aggregate by week start
+- For "daily trends" → GROUP BY DATE(order_date) for individual days
+- For "monthly trends" → GROUP BY DATE(order_date, 'start of month') for monthly aggregation
 - For "cuisine analysis" → JOIN with restaurants table for cuisine_type
 - For "by categories" → Always GROUP BY the category dimension
 - For comparisons → Include comparative metrics (AVG, COUNT, SUM)
+
+Time Period Examples:
+- Weekly: SELECT DATE(order_date, 'weekday 0', '-6 days') as week_start, COUNT(*) as weekly_orders
+- Daily: SELECT DATE(order_date) as order_date, COUNT(*) as daily_orders
+- Monthly: SELECT DATE(order_date, 'start of month') as month_start, COUNT(*) as monthly_orders
 
 SQL Query:"""
 
@@ -507,7 +514,37 @@ SQL Query:"""
             """
             return sql.strip(), "Fallback"
         
-        elif any(word in question_lower for word in ['order', 'trend', 'daily', 'weekly']):
+        elif any(word in question_lower for word in ['weekly', 'week']):
+            sql = """
+                SELECT DATE(o.order_date, 'weekday 0', '-6 days') as week_start,
+                       COUNT(o.order_id) as weekly_orders,
+                       AVG(o.total_amount) as avg_order_value,
+                       SUM(o.total_amount) as weekly_revenue
+                FROM orders o
+                WHERE o.order_status = 'delivered'
+                  AND o.order_date >= DATE('now', '-8 weeks')
+                GROUP BY week_start
+                ORDER BY week_start DESC
+                LIMIT 10
+            """
+            return sql.strip(), "Fallback"
+        
+        elif any(word in question_lower for word in ['monthly', 'month']):
+            sql = """
+                SELECT DATE(o.order_date, 'start of month') as month_start,
+                       COUNT(o.order_id) as monthly_orders,
+                       AVG(o.total_amount) as avg_order_value,
+                       SUM(o.total_amount) as monthly_revenue
+                FROM orders o
+                WHERE o.order_status = 'delivered'
+                  AND o.order_date >= DATE('now', '-6 months')
+                GROUP BY month_start
+                ORDER BY month_start DESC
+                LIMIT 10
+            """
+            return sql.strip(), "Fallback"
+        
+        elif any(word in question_lower for word in ['order', 'trend', 'daily']):
             sql = """
                 SELECT DATE(o.order_date) as order_day,
                        COUNT(o.order_id) as daily_orders,
