@@ -163,16 +163,43 @@
                 height: calc(100dvh - 120px);
             }
             
-            /* Fix body scrolling */
+            /* Fix body scrolling on mobile only */
             body {
                 overflow: hidden;
                 height: 100vh;
                 height: 100dvh;
             }
         }
+        
+        /* Desktop-specific styles */
+        @media (min-width: 1025px) {
+            body {
+                overflow: auto;
+                height: auto;
+            }
+            
+            .main-content {
+                height: 100vh;
+                overflow: hidden;
+            }
+            
+            #chat-messages-container {
+                overflow-y: auto;
+                height: calc(100vh - 160px); /* Account for top bar and input area */
+            }
+            
+            .chat-input-area {
+                position: static; /* Not fixed on desktop */
+                background: transparent;
+                z-index: auto;
+                border-top: none;
+                backdrop-filter: none;
+                padding-bottom: 0;
+            }
+        }
     </style>
 </head>
-<body class="overflow-hidden lg:overflow-hidden">
+<body>
     <!-- Mobile Sidebar Overlay -->
     <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden lg:hidden"></div>
     
@@ -223,7 +250,7 @@
     </div>
     
     <!-- Main Content -->
-    <div class="lg:ml-80 min-h-screen flex flex-col main-content">
+    <div class="lg:ml-80 flex flex-col main-content">
         <!-- Top Bar -->
         <div class="glass-effect p-4 flex items-center justify-between">
             <button id="sidebar-toggle" class="lg:hidden text-white hover:text-opacity-70">
