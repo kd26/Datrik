@@ -448,7 +448,7 @@
                     <div class="flex items-center justify-between mb-3">
                         <h4 class="font-semibold text-gray-700">Data Results (${data.row_count} records)</h4>
                         <div class="flex space-x-2">
-                            <button onclick="viewQuery('${data.sql_query}', '${data.provider}')" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs">
+                            <button data-sql-query="${encodeURIComponent(data.sql_query)}" data-provider="${data.provider}" class="view-query-btn px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs">
                                 <i class="fas fa-code mr-1"></i> View Query
                             </button>
                             <button onclick="downloadData(${JSON.stringify(data.data).replace(/"/g, '&quot;')})" class="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs">
@@ -687,25 +687,66 @@
         window.viewQuery = function(query, provider) {
             const queryModal = document.createElement('div');
             queryModal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+            
+            // Escape HTML in query for safe display
+            const escapeHtml = (text) => {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            };
+            
             queryModal.innerHTML = `
-                <div class="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
-                    <div class="p-4 border-b flex items-center justify-between">
-                        <h3 class="font-semibold">Generated SQL Query (${provider})</h3>
-                        <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
-                            <i class="fas fa-times"></i>
+                <div class="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+                    <div class="p-4 border-b flex items-center justify-between bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Generated SQL Query (${escapeHtml(provider)})</h3>
+                        <button class="close-modal-btn text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-200">
+                            <i class="fas fa-times text-lg"></i>
                         </button>
                     </div>
-                    <div class="p-4">
-                        <pre class="bg-gray-900 text-green-400 p-4 rounded text-sm overflow-x-auto"><code>${query}</code></pre>
+                    <div class="p-6">
+                        <pre class="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap"><code>${escapeHtml(query)}</code></pre>
+                        <div class="mt-4 flex justify-end">
+                            <button class="copy-query-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                                <i class="fas fa-copy mr-2"></i>Copy Query
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
             document.body.appendChild(queryModal);
             
+            // Close modal event listeners
             queryModal.addEventListener('click', (e) => {
-                if (e.target === queryModal) {
+                if (e.target === queryModal || e.target.closest('.close-modal-btn')) {
                     queryModal.remove();
                 }
+            });
+            
+            // Copy query functionality
+            queryModal.querySelector('.copy-query-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(query).then(() => {
+                    const btn = queryModal.querySelector('.copy-query-btn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = query;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    const btn = queryModal.querySelector('.copy-query-btn');
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i>Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                });
             });
         };
         
@@ -790,6 +831,20 @@
             conversationHistory = [];
             loadChatHistory();
         };
+        
+        // Event delegation for dynamically created view query buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.view-query-btn')) {
+                const button = e.target.closest('.view-query-btn');
+                const encodedQuery = button.getAttribute('data-sql-query');
+                const provider = button.getAttribute('data-provider');
+                
+                if (encodedQuery && provider) {
+                    const decodedQuery = decodeURIComponent(encodedQuery);
+                    viewQuery(decodedQuery, provider);
+                }
+            }
+        });
     </script>
 </body>
 </html>
