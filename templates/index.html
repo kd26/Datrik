@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Datrik - AI Food Delivery Analyst</title>
+    <title>Datrik - AI Data Analyst</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -136,6 +136,7 @@
                 height: 100vh;
                 height: 100dvh; /* Dynamic viewport height for mobile */
                 position: relative;
+                overflow: hidden;
             }
             
             .chat-input-area {
@@ -147,6 +148,7 @@
                 z-index: 20;
                 border-top: 1px solid rgba(255, 255, 255, 0.1);
                 backdrop-filter: blur(10px);
+                padding-bottom: env(safe-area-inset-bottom, 0px);
             }
             
             .welcome-area {
@@ -155,11 +157,17 @@
             
             #chat-messages-container {
                 padding-bottom: 120px; /* Space for fixed input area */
+                overflow-y: scroll;
+                -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+                height: calc(100vh - 120px);
+                height: calc(100dvh - 120px);
             }
             
-            /* Ensure safe area for mobile browsers */
-            .chat-input-area {
-                padding-bottom: env(safe-area-inset-bottom, 0px);
+            /* Fix body scrolling */
+            body {
+                overflow: hidden;
+                height: 100vh;
+                height: 100dvh;
             }
         }
     </style>
@@ -179,7 +187,6 @@
                     </div>
                     <div>
                         <h1 class="text-white text-xl font-bold">Datrik</h1>
-                        <p class="text-white text-opacity-70 text-sm">AI Food Analyst</p>
                     </div>
                 </div>
                 <button id="sidebar-close" class="lg:hidden text-white hover:text-opacity-70">
@@ -198,7 +205,7 @@
                 </div>
                 <div class="mt-3 p-2 rounded bg-white bg-opacity-10">
                     <p class="text-white text-xs font-medium">Data Range</p>
-                    <p class="text-white text-opacity-70 text-xs">90 days of realistic food delivery data</p>
+                    <p class="text-white text-opacity-70 text-xs">90 days of sample data</p>
                 </div>
             </div>
             
@@ -247,7 +254,7 @@
                                 </div>
                                 <h2 class="text-white text-2xl font-bold mb-2">Welcome to Datrik</h2>
                                 <p class="text-white text-opacity-70 mb-8 max-w-md mx-auto text-center">
-                                    Your AI-powered analyst. Ask me anything about your business data and get instant insights.
+                                    Your AI-powered analyst. Ask me anything about your data and get instant insights.
                                 </p>
                                 
                                 <!-- Quick Examples -->
@@ -258,13 +265,13 @@
                                     </h3>
                                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                         <button class="example-button p-3 rounded-lg text-white text-sm">
-                                            Top restaurants by orders
+                                            Top performers by volume
                                         </button>
                                         <button class="example-button p-3 rounded-lg text-white text-sm">
-                                            Popular cuisines analysis
+                                            Category analysis
                                         </button>
                                         <button class="example-button p-3 rounded-lg text-white text-sm">
-                                            Weekly order trends
+                                            Weekly trends
                                         </button>
                                     </div>
                                 </div>
@@ -277,11 +284,11 @@
             <div class="px-6 pb-6 chat-input-area">
                 <div class="max-w-4xl mx-auto">
                     <div class="glass-effect rounded-2xl p-4">
-                        <form id="query-form" class="flex items-end space-x-4">
+                        <form id="query-form" class="flex items-center space-x-4">
                         <div class="flex-1">
                             <textarea 
                                 id="question-input" 
-                                placeholder="Ask me about your food delivery data..." 
+                                placeholder="Ask me anything about your data..." 
                                 class="chat-input w-full px-4 py-3 rounded-xl border-0 outline-none resize-none"
                                 rows="1"
                                 required
@@ -289,7 +296,7 @@
                         </div>
                         <button 
                             type="submit" 
-                            class="send-button w-12 h-12 rounded-xl flex items-center justify-center text-white outline-none"
+                            class="send-button w-12 h-12 rounded-xl flex items-center justify-center text-white outline-none flex-shrink-0"
                             id="submit-btn"
                         >
                             <i class="fas fa-paper-plane"></i>
@@ -432,7 +439,7 @@
         
         function addConversationalMessage(data) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-bubble mb-6 flex justify-center';
+            messageDiv.className = 'chat-bubble mb-6 px-6 flex justify-start';
             
             const bubble = document.createElement('div');
             bubble.className = 'max-w-4xl w-full p-4 rounded-2xl message-assistant';
@@ -472,12 +479,12 @@
             const messageId = 'msg-' + Date.now();
             const messageDiv = document.createElement('div');
             messageDiv.id = messageId;
-            messageDiv.className = `chat-bubble mb-6 flex justify-center`;
+            messageDiv.className = `chat-bubble mb-6 px-6 flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
             
             const bubble = document.createElement('div');
             bubble.className = `max-w-4xl w-full p-4 rounded-2xl ${
                 role === 'user' 
-                    ? 'message-user ml-auto' 
+                    ? 'message-user' 
                     : 'message-assistant'
             } ${isTyping ? 'typing-indicator' : ''}`;
             
