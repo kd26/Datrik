@@ -346,12 +346,12 @@ Guidelines:
                 }
             )
             
-            return response, result_data, provider
+            return response, result_data, provider, sql_query
             
         except Exception as e:
             error_msg = f"Analysis failed: {str(e)}"
             print(error_msg)
-            return error_msg, {'data': [], 'columns': [], 'row_count': 0}, "Error"
+            return error_msg, {'data': [], 'columns': [], 'row_count': 0}, "Error", ""
     
     def generate_sql(self, question: str) -> Tuple[str, str]:
         """Generate SQL query using LLM with conversation context"""

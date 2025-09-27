@@ -343,10 +343,7 @@ def query():
         
         # Use LangChain analyst with memory
         try:
-            analysis, result_data, provider = datrik.analyze_with_memory(question, session_id)
-            
-            # Get SQL query from the last operation (for display purposes)
-            sql_query = "Generated with LangChain"  # We'll enhance this later
+            analysis, result_data, provider, sql_query = datrik.analyze_with_memory(question, session_id)
             
             return jsonify({
                 'sql_query': sql_query,
